@@ -1,0 +1,91 @@
+{
+  "name": "Shopee image-embedding conditional diffusion",
+  "protocol_note": "The 800-row Shopee training pool is split into train/validation arrays. Diffusion settings are selected on validation; the 80-row test set is final-only. Both splits use M=100.",
+  "variables": {
+    "data_root": "{repo}/data",
+    "pretrained_root": "{repo}/pretrained",
+    "artifacts_root": "{repo}/artifacts",
+    "dataset": "shopee",
+    "diffusion_dir": "{artifacts_root}/shopee_image_only/diffusion",
+    "validation_sampling_dir": "{artifacts_root}/shopee_image_only/sampling_val_m100",
+    "sampling_dir": "{artifacts_root}/shopee_image_only/sampling_test_m100"
+  },
+  "commands": [
+    {
+      "name": "diffusion_train",
+      "cwd": "{repo}",
+      "argv": [
+        "{python}", "scripts/pm_diff_train.py",
+        "--y_emb_path", "{pretrained_root}/{dataset}/response_vae",
+        "--image_path", "{data_root}/{dataset}/{dataset}_image_embd",
+        "--diffusion_path", "{diffusion_dir}",
+        "--y_type", "categorical",
+        "--use_tab", "false",
+        "--use_text", "false",
+        "--use_image", "true",
+        "--d_in", "4",
+        "--dim_t", "128",
+        "--cond_dim", "768",
+        "--epochs", "10000",
+        "--batch_size", "1024",
+        "--lr", "0.00005155026776774246",
+        "--early_stopping_thrshd", "500",
+        "--use_wandb", "false"
+      ]
+    },
+    {
+      "name": "sample_validation",
+      "cwd": "{repo}",
+      "argv": [
+        "{python}", "scripts/pm_diff_sample.py",
+        "--data_path", "{data_root}/{dataset}",
+        "--diffusion_path", "{diffusion_dir}",
+        "--sampling_path", "{validation_sampling_dir}",
+        "--batch_size", "1024",
+        "--steps", "50",
+        "--num_repeats", "100",
+        "--use_val", "true",
+        "--seed", "42"
+      ]
+    },
+    {
+      "name": "evaluate_validation",
+      "cwd": "{repo}",
+      "argv": [
+        "{python}", "scripts/pm_gen_check.py",
+        "--data-path", "{data_root}/{dataset}",
+        "--sampling-paths", "{validation_sampling_dir}",
+        "--pm-task", "cls",
+        "--y-num-classes", "4",
+        "--num-repeats", "100",
+        "--use-val", "true"
+      ]
+    },
+    {
+      "name": "sample_test",
+      "cwd": "{repo}",
+      "argv": [
+        "{python}", "scripts/pm_diff_sample.py",
+        "--data_path", "{data_root}/{dataset}",
+        "--diffusion_path", "{diffusion_dir}",
+        "--sampling_path", "{sampling_dir}",
+        "--batch_size", "1024",
+        "--steps", "50",
+        "--num_repeats", "100",
+        "--seed", "42"
+      ]
+    },
+    {
+      "name": "evaluate_test",
+      "cwd": "{repo}",
+      "argv": [
+        "{python}", "scripts/pm_gen_check.py",
+        "--data-path", "{data_root}/{dataset}",
+        "--sampling-paths", "{sampling_dir}",
+        "--pm-task", "cls",
+        "--y-num-classes", "4",
+        "--num-repeats", "100"
+      ]
+    }
+  ]
+}

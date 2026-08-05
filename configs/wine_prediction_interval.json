@@ -1,0 +1,58 @@
+{
+  "name": "Wine one-model fixed-M observed-residual prediction interval",
+  "protocol_note": "Uses the already trained Wine full diffusion model, M=200 on validation and test, full validation residual calibration, and empirical-residual CRPS.",
+  "variables": {
+    "data_root": "{repo}/data",
+    "artifacts_root": "{repo}/artifacts",
+    "diffusion_dir": "{artifacts_root}/wine_full/diffusion",
+    "run_root": "{artifacts_root}/wine_prediction_interval",
+    "val_sampling_dir": "{run_root}/sampling_val_m200",
+    "test_sampling_dir": "{run_root}/sampling_test_m200"
+  },
+  "commands": [
+    {
+      "name": "sample_validation",
+      "cwd": "{repo}",
+      "argv": [
+        "{python}", "scripts/pm_diff_sample.py",
+        "--data_path", "{data_root}/wine_review3_wval",
+        "--diffusion_path", "{diffusion_dir}",
+        "--sampling_path", "{val_sampling_dir}",
+        "--batch_size", "1024",
+        "--steps", "100",
+        "--num_repeats", "200",
+        "--use_val", "true",
+        "--seed", "202607060"
+      ]
+    },
+    {
+      "name": "sample_test",
+      "cwd": "{repo}",
+      "argv": [
+        "{python}", "scripts/pm_diff_sample.py",
+        "--data_path", "{data_root}/wine_review3_wval",
+        "--diffusion_path", "{diffusion_dir}",
+        "--sampling_path", "{test_sampling_dir}",
+        "--batch_size", "1024",
+        "--steps", "100",
+        "--num_repeats", "200",
+        "--use_val", "false",
+        "--seed", "202607260"
+      ]
+    },
+    {
+      "name": "evaluate_interval",
+      "cwd": "{repo}",
+      "argv": [
+        "{python}", "scripts/observed_residual_pi.py",
+        "--data-dir", "{data_root}/wine_review3_wval",
+        "--val-samples", "{val_sampling_dir}/y_test_all.npy",
+        "--test-samples", "{test_sampling_dir}/y_test_all.npy",
+        "--m", "200",
+        "--alpha", "0.05",
+        "--standardize-metrics",
+        "--output", "{run_root}/summary.json"
+      ]
+    }
+  ]
+}

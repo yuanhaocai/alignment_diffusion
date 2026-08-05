@@ -1,0 +1,185 @@
+# Portions adapted from amazon-science/TabSyn (Apache-2.0) and modified.
+import torch
+import torch.nn as nn
+import torch.nn.functional as F
+from torch import Tensor
+
+from .diffusion_utils import EDMLoss
+
+
+class SiLU(nn.Module):
+    def forward(self, x):
+        return x * torch.sigmoid(x)
+
+class PositionalEmbedding(torch.nn.Module):
+    def __init__(self, num_channels, max_positions=10000, endpoint=False):
+        super().__init__()
+        self.num_channels = num_channels
+        self.max_positions = max_positions
+        self.endpoint = endpoint
+
+    def forward(self, x):
+        freqs = torch.arange(start=0, end=self.num_channels//2, dtype=torch.float32, device=x.device)
+        freqs = freqs / (self.num_channels // 2 - (1 if self.endpoint else 0))
+        freqs = (1 / self.max_positions) ** freqs
+        x = x.ger(freqs.to(x.dtype))
+        x = torch.cat([x.cos(), x.sin()], dim=1)
+        return x
+
+def reglu(x: Tensor) -> Tensor:
+    """The ReGLU activation function from [1].
+    References:
+        [1] Noam Shazeer, "GLU Variants Improve Transformer", 2020
+    """
+    assert x.shape[-1] % 2 == 0
+    a, b = x.chunk(2, dim=-1)
+    return a * F.relu(b)
+
+
+def geglu(x: Tensor) -> Tensor:
+    """The GEGLU activation function from [1].
+    References:
+        [1] Noam Shazeer, "GLU Variants Improve Transformer", 2020
+    """
+    assert x.shape[-1] % 2 == 0
+    a, b = x.chunk(2, dim=-1)
+    return a * F.gelu(b)
+
+class ReGLU(nn.Module):
+    """The ReGLU activation function from [shazeer2020glu].
+
+    Examples:
+        .. testcode::
+
+            module = ReGLU()
+            x = torch.randn(3, 4)
+            assert module(x).shape == (3, 2)
+
+    References:
+        * [shazeer2020glu] Noam Shazeer, "GLU Variants Improve Transformer", 2020
+    """
+
+    def forward(self, x: Tensor) -> Tensor:
+        return reglu(x)
+
+
+class GEGLU(nn.Module):
+    """The GEGLU activation function from [shazeer2020glu].
+
+    Examples:
+        .. testcode::
+
+            module = GEGLU()
+            x = torch.randn(3, 4)
+            assert module(x).shape == (3, 2)
+
+    References:
+        * [shazeer2020glu] Noam Shazeer, "GLU Variants Improve Transformer", 2020
+    """
+
+    def forward(self, x: Tensor) -> Tensor:
+        return geglu(x)
+
+
+class MLPDiffusion(nn.Module):
+    def __init__(self, d_in, dim_t=512, is_y_cond=False, y_categories=-1):
+        """
+        Args:
+            categories_y: A list containing the categories of each column of y.
+        """
+        super().__init__()
+        self.dim_t = dim_t
+        self.is_y_cond = is_y_cond
+        self.y_categories = y_categories
+
+        self.proj = nn.Linear(d_in, dim_t)
+        if self.y_categories != -1 and is_y_cond:
+            self.label_emb1 = nn.Embedding(sum(self.y_categories), dim_t)
+            self.label_emb2 = nn.Linear(dim_t * len(self.y_categories), dim_t)
+        # elif self.num_classes == 0 and is_y_cond:
+        #     self.label_emb = nn.Linear(1, dim_t)
+
+        self.mlp = nn.Sequential(
+            nn.Linear(dim_t, dim_t * 2),
+            nn.SiLU(),
+            nn.Linear(dim_t * 2, dim_t * 2),
+            nn.SiLU(),
+            nn.Linear(dim_t * 2, dim_t),
+            nn.SiLU(),
+            nn.Linear(dim_t, d_in),
+        )
+
+        self.map_noise = PositionalEmbedding(num_channels=dim_t)
+        self.time_embed = nn.Sequential(
+            nn.Linear(dim_t, dim_t),
+            nn.SiLU(),
+            nn.Linear(dim_t, dim_t)
+        )
+    
+    def forward(self, x, noise_labels, y=None):
+        emb = self.map_noise(noise_labels)
+        emb = emb.reshape(emb.shape[0], 2, -1).flip(1).reshape(*emb.shape) # swap sin/cos
+        emb = self.time_embed(emb)
+
+        if self.is_y_cond and y is not None:
+            if self.y_categories != -1:
+                # y = y.squeeze()
+                pass
+            else:
+                raise NotImplementedError("Conditional generation for numerical y is not implemented yet.")
+            category_offsets = torch.tensor([0] + self.y_categories[:-1], device=y.device).cumsum(0)
+            y_emb1 = self.label_emb1(y + category_offsets[None])
+            y_emb2 = self.label_emb2(y_emb1.view(y_emb1.shape[0], -1))
+            emb += F.silu(y_emb2)
+
+        x = self.proj(x) + emb
+        return self.mlp(x)
+
+
+class Precond(nn.Module):
+    def __init__(self,
+        denoise_fn,
+        hid_dim,
+        sigma_min = 0,                # Minimum supported noise level.
+        sigma_max = float('inf'),     # Maximum supported noise level.
+        sigma_data = 0.5,             # Expected standard deviation of the training data.
+    ):
+        super().__init__()
+
+        self.hid_dim = hid_dim
+        self.sigma_min = sigma_min
+        self.sigma_max = sigma_max
+        self.sigma_data = sigma_data
+        self.denoise_fn_F = denoise_fn
+
+    def forward(self, x, sigma, y=None):
+        x = x.to(torch.float32)
+
+        sigma = sigma.to(torch.float32).reshape(-1, 1)
+        dtype = torch.float32
+
+        c_skip = self.sigma_data ** 2 / (sigma ** 2 + self.sigma_data ** 2)
+        c_out = sigma * self.sigma_data / (sigma ** 2 + self.sigma_data ** 2).sqrt()
+        c_in = 1 / (self.sigma_data ** 2 + sigma ** 2).sqrt()
+        c_noise = sigma.log() / 4
+
+        x_in = c_in * x
+        F_x = self.denoise_fn_F((x_in).to(dtype), c_noise.flatten(), y)
+
+        assert F_x.dtype == dtype
+        D_x = c_skip * x + c_out * F_x.to(torch.float32)
+        return D_x
+
+    def round_sigma(self, sigma):
+        return torch.as_tensor(sigma)
+    
+
+class Model(nn.Module):
+    def __init__(self, denoise_fn, hid_dim, P_mean=-1.2, P_std=1.2, sigma_data=0.5, gamma=5, opts=None, pfgmpp = False):
+        super().__init__()
+        self.denoise_fn_D = Precond(denoise_fn, hid_dim)
+        self.loss_fn = EDMLoss(P_mean, P_std, sigma_data, hid_dim=hid_dim, gamma=5, opts=None)
+
+    def forward(self, x, y):
+        loss = self.loss_fn(self.denoise_fn_D, x, y)
+        return loss.mean(-1).mean()

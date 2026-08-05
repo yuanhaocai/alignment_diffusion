@@ -1,0 +1,142 @@
+{
+  "name": "Wine Reviews full residual-alignment point-prediction workflow",
+  "protocol_note": "Single-run validation-set protocol. The residual projector uses scale 0.1 consistently during training and transformation. Validation is evaluated before the held-out test split.",
+  "variables": {
+    "data_root": "{repo}/data",
+    "embedding_root": "{repo}/embeddings",
+    "pretrained_root": "{repo}/pretrained",
+    "artifacts_root": "{repo}/artifacts",
+    "dataset": "wine_review3_wval",
+    "run_root": "{artifacts_root}/wine_full",
+    "alignment_dir": "{run_root}/alignment",
+    "aligned_embedding_dir": "{run_root}/aligned_embeddings",
+    "diffusion_dir": "{run_root}/diffusion",
+    "sampling_val_dir": "{run_root}/sampling_val_m50",
+    "sampling_dir": "{run_root}/sampling_test_m50"
+  },
+  "commands": [
+    {
+      "name": "alignment_train",
+      "cwd": "{repo}/src/alignment",
+      "argv": [
+        "{python}", "-m", "accelerate.commands.launch",
+        "--num_processes", "1", "main.py",
+        "--text_path", "{embedding_root}/{dataset}_text_clip_embd",
+        "--train_z_dat_path", "{pretrained_root}/{dataset}/tabular_vae",
+        "--y_path", "{data_root}/{dataset}",
+        "--save_dir", "{alignment_dir}",
+        "--batch_size", "64",
+        "--emb_dim", "768",
+        "--y_num_classes", "5",
+        "--lr", "0.001",
+        "--n_epochs", "100",
+        "--eval_interval", "5",
+        "--weight_clip_loss", "1.0",
+        "--weight_sup_loss", "1.0",
+        "--projector_mode", "residual",
+        "--residual_scale", "0.1",
+        "--patience", "25",
+        "--y_type", "continuous"
+      ]
+    },
+    {
+      "name": "alignment_transform",
+      "cwd": "{repo}",
+      "argv": [
+        "{python}", "scripts/transform_alignment.py",
+        "--checkpoint", "{alignment_dir}/models/tabtext_align.pt",
+        "--text-path", "{embedding_root}/{dataset}_text_clip_embd",
+        "--tabular-path", "{pretrained_root}/{dataset}/tabular_vae",
+        "--output-dir", "{aligned_embedding_dir}",
+        "--y-type", "continuous",
+        "--y-num-classes", "5",
+        "--projector-mode", "residual",
+        "--residual-scale", "0.1",
+        "--tabular-normalization", "numpy-population",
+        "--splits", "train", "val", "test"
+      ]
+    },
+    {
+      "name": "diffusion_train",
+      "cwd": "{repo}",
+      "argv": [
+        "{python}", "scripts/pm_diff_train.py",
+        "--y_emb_path", "{pretrained_root}/{dataset}/response_standard_scaler",
+        "--emb_alignment_path", "{aligned_embedding_dir}",
+        "--diffusion_path", "{diffusion_dir}",
+        "--y_type", "continuous",
+        "--use_tab", "true",
+        "--use_text", "true",
+        "--use_image", "false",
+        "--d_in", "1",
+        "--dim_t", "1024",
+        "--cond_dim", "768",
+        "--text_pooling", "mean",
+        "--normalize_tab_cond", "true",
+        "--normalize_text_tokens", "false",
+        "--normalize_text_pooled", "true",
+        "--normalize_projected_cond", "false",
+        "--alignment_mix_alpha", "1.0",
+        "--epochs", "1000",
+        "--batch_size", "2048",
+        "--lr", "0.0002",
+        "--early_stopping_thrshd", "500",
+        "--use_wandb", "false",
+        "--seed", "42"
+      ]
+    },
+    {
+      "name": "sample_validation",
+      "cwd": "{repo}",
+      "argv": [
+        "{python}", "scripts/pm_diff_sample.py",
+        "--data_path", "{data_root}/{dataset}",
+        "--diffusion_path", "{diffusion_dir}",
+        "--sampling_path", "{sampling_val_dir}",
+        "--batch_size", "1024",
+        "--steps", "100",
+        "--num_repeats", "50",
+        "--use_val", "true",
+        "--seed", "42"
+      ]
+    },
+    {
+      "name": "evaluate_validation",
+      "cwd": "{repo}",
+      "argv": [
+        "{python}", "scripts/pm_gen_check.py",
+        "--data-path", "{data_root}/{dataset}",
+        "--sampling-paths", "{sampling_val_dir}",
+        "--pm-task", "reg",
+        "--num-repeats", "50",
+        "--use-val", "true"
+      ]
+    },
+    {
+      "name": "sample_test",
+      "cwd": "{repo}",
+      "argv": [
+        "{python}", "scripts/pm_diff_sample.py",
+        "--data_path", "{data_root}/{dataset}",
+        "--diffusion_path", "{diffusion_dir}",
+        "--sampling_path", "{sampling_dir}",
+        "--batch_size", "1024",
+        "--steps", "100",
+        "--num_repeats", "50",
+        "--use_val", "false",
+        "--seed", "42"
+      ]
+    },
+    {
+      "name": "evaluate_test",
+      "cwd": "{repo}",
+      "argv": [
+        "{python}", "scripts/pm_gen_check.py",
+        "--data-path", "{data_root}/{dataset}",
+        "--sampling-paths", "{sampling_dir}",
+        "--pm-task", "reg",
+        "--num-repeats", "50"
+      ]
+    }
+  ]
+}

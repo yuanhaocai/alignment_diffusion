@@ -1,0 +1,20 @@
+{
+  "description": "Input template for selecting among externally generated MIMIC-IV CoDSA candidates",
+  "usage": "Replace each probability path with a .npy file produced by a CoDSA implementation and its fitted classifier. Relative paths are resolved from this manifest's directory.",
+  "probability_format": "One positive-class probability per validation or test row, with shape (n,), (n, 1), or (n, 2). For shape (n, 2), column 1 is used.",
+  "protocol": "Each candidate encodes a CoDSA (r, alpha, m) tuple and classifier hyperparameters. Candidate and probability threshold are selected jointly by validation F1; test probabilities are final-only.",
+  "candidates": [
+    {
+      "id": "replace-with-candidate-id",
+      "parameters": {
+        "classifier": "xgboost",
+        "r": 0.1,
+        "alpha": 0.5,
+        "m": 1000,
+        "classifier_hyperparameters": {}
+      },
+      "validation_proba": "REPLACE_WITH_VALIDATION_PROBA.npy",
+      "test_proba": "REPLACE_WITH_TEST_PROBA.npy"
+    }
+  ]
+}

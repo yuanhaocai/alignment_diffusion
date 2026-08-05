@@ -1,0 +1,133 @@
+{
+  "name": "MIMIC-IV full linear alignment and diffusion workflow",
+  "protocol_note": "The classification threshold is selected on validation F1 and applied unchanged to test. Sampling uses M=50 on validation and M=200 on test.",
+  "variables": {
+    "data_root": "{repo}/data",
+    "embedding_root": "{repo}/embeddings",
+    "pretrained_root": "{repo}/pretrained",
+    "artifacts_root": "{repo}/artifacts",
+    "dataset": "mimic_adm_pt_disch_discharge_censored_wval",
+    "text_embedding_dataset": "mimic_adm_pt_disch_discharge_censored_wval",
+    "run_root": "{artifacts_root}/mimic_full",
+    "alignment_dir": "{run_root}/alignment",
+    "aligned_embedding_dir": "{run_root}/aligned_embeddings",
+    "diffusion_dir": "{run_root}/diffusion",
+    "val_sampling_dir": "{run_root}/sampling_val_m50",
+    "test_sampling_dir": "{run_root}/sampling_test_m200"
+  },
+  "commands": [
+    {
+      "name": "alignment_train",
+      "cwd": "{repo}/src/alignment",
+      "argv": [
+        "{python}", "-m", "accelerate.commands.launch",
+        "--num_processes", "1", "main.py",
+        "--text_path", "{embedding_root}/{text_embedding_dataset}_text_clip_embd",
+        "--train_z_dat_path", "{pretrained_root}/{dataset}/tabular_vae",
+        "--y_path", "{data_root}/{dataset}",
+        "--save_dir", "{alignment_dir}",
+        "--batch_size", "64",
+        "--emb_dim", "768",
+        "--y_num_classes", "2",
+        "--y_class_weight", "1", "49",
+        "--lr", "0.0003",
+        "--n_epochs", "50",
+        "--eval_interval", "5",
+        "--weight_clip_loss", "1.0",
+        "--weight_sup_loss", "1.0",
+        "--projector_mode", "linear",
+        "--residual_scale", "1.0",
+        "--patience", "150",
+        "--y_type", "categorical"
+      ]
+    },
+    {
+      "name": "alignment_transform",
+      "cwd": "{repo}",
+      "argv": [
+        "{python}", "scripts/transform_alignment.py",
+        "--checkpoint", "{alignment_dir}/models/tabtext_align.pt",
+        "--text-path", "{embedding_root}/{text_embedding_dataset}_text_clip_embd",
+        "--tabular-path", "{pretrained_root}/{dataset}/tabular_vae",
+        "--output-dir", "{aligned_embedding_dir}",
+        "--y-type", "categorical",
+        "--y-num-classes", "2",
+        "--projector-mode", "linear",
+        "--residual-scale", "1.0",
+        "--tabular-normalization", "torch-sample",
+        "--splits", "train", "val", "test"
+      ]
+    },
+    {
+      "name": "diffusion_train",
+      "cwd": "{repo}",
+      "argv": [
+        "{python}", "scripts/pm_diff_train.py",
+        "--y_emb_path", "{pretrained_root}/{dataset}/response_vae",
+        "--emb_alignment_path", "{aligned_embedding_dir}",
+        "--diffusion_path", "{diffusion_dir}",
+        "--y_type", "categorical",
+        "--use_tab", "true",
+        "--use_text", "true",
+        "--use_image", "false",
+        "--d_in", "2",
+        "--dim_t", "1536",
+        "--cond_dim", "768",
+        "--text_pooling", "mean",
+        "--normalize_tab_cond", "true",
+        "--normalize_text_tokens", "false",
+        "--normalize_text_pooled", "true",
+        "--normalize_projected_cond", "false",
+        "--alignment_mix_alpha", "1.0",
+        "--epochs", "200",
+        "--batch_size", "512",
+        "--lr", "0.0001036904608362882",
+        "--early_stopping_thrshd", "500",
+        "--use_wandb", "false",
+        "--seed", "42"
+      ]
+    },
+    {
+      "name": "sample_validation",
+      "cwd": "{repo}",
+      "argv": [
+        "{python}", "scripts/pm_diff_sample.py",
+        "--data_path", "{data_root}/{dataset}",
+        "--diffusion_path", "{diffusion_dir}",
+        "--sampling_path", "{val_sampling_dir}",
+        "--batch_size", "1024",
+        "--steps", "50",
+        "--num_repeats", "50",
+        "--use_val", "true",
+        "--seed", "42"
+      ]
+    },
+    {
+      "name": "sample_test",
+      "cwd": "{repo}",
+      "argv": [
+        "{python}", "scripts/pm_diff_sample.py",
+        "--data_path", "{data_root}/{dataset}",
+        "--diffusion_path", "{diffusion_dir}",
+        "--sampling_path", "{test_sampling_dir}",
+        "--batch_size", "1024",
+        "--steps", "50",
+        "--num_repeats", "200",
+        "--use_val", "false",
+        "--seed", "42"
+      ]
+    },
+    {
+      "name": "evaluate_validation_threshold",
+      "cwd": "{repo}",
+      "argv": [
+        "{python}", "scripts/evaluate_binary_threshold.py",
+        "--model-name", "linear_swtext10",
+        "--data-dir", "{data_root}/{dataset}",
+        "--val-proba", "{val_sampling_dir}/y_proba.npy",
+        "--test-proba", "{test_sampling_dir}/y_proba.npy",
+        "--out-json", "{run_root}/metrics_val_threshold.json"
+      ]
+    }
+  ]
+}
