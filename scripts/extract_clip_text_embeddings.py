@@ -32,6 +32,8 @@ def main() -> None:
     )
     parser.add_argument("--device", default="cuda" if torch.cuda.is_available() else "cpu")
     parser.add_argument("--overwrite", action="store_true")
+    parser.add_argument("--keep-padding", action="store_true",
+                        help="retain all 77 CLIP token states, as in the recorded Wine PI experiment")
     args = parser.parse_args()
 
     texts = json.loads(args.input_json.read_text(encoding="utf-8"))
@@ -67,7 +69,9 @@ def main() -> None:
             attention_mask = encoded["attention_mask"].to(
                 device=hidden.device, dtype=hidden.dtype
             )
-            hidden = (hidden * attention_mask.unsqueeze(-1)).cpu().numpy()
+            if not args.keep_padding:
+                hidden = hidden * attention_mask.unsqueeze(-1)
+            hidden = hidden.cpu().numpy()
             for offset in range(len(hidden)):
                 np.save(
                     args.output_dir / f"{start + offset}.npy",

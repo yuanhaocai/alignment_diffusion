@@ -127,24 +127,17 @@ def raw_text_path(config: dict[str, Any]) -> str:
 def apply_prediction_interval_variant(
     config: dict[str, Any], variant: str
 ) -> dict[str, Any]:
-    if variant == "full":
-        return config
-    if variant != "tabular-only":
+    if variant not in {"full", "tabular-only"}:
         raise ValueError(
             "wine_prediction_interval.json supports only the full and "
             "tabular-only variants"
         )
-    config["name"] = "Wine Reviews tabular-only prediction-interval workflow"
-    config["protocol_note"] = (
-        "Uses the trained Wine Reviews tabular-only diffusion model. "
-        "Validation residuals calibrate the intervals before test evaluation."
-    )
-    config["variables"]["diffusion_dir"] = (
-        "{artifacts_root}/wine_tabular_only/diffusion"
-    )
-    config["variables"]["run_root"] = (
-        "{artifacts_root}/wine_tabular_only_prediction_interval"
-    )
+    if "variant" in config["variables"]:
+        config["variables"]["variant"] = variant
+        config["name"] += f" ({variant})"
+    elif variant == "tabular-only":
+        config["variables"]["diffusion_dir"] = "{artifacts_root}/wine_tabular_only/diffusion"
+        config["variables"]["run_root"] = "{artifacts_root}/wine_tabular_only_prediction_interval_legacy"
     return config
 
 
@@ -152,7 +145,7 @@ def apply_variant(
     raw_config: dict[str, Any], config_path: Path, variant: str
 ) -> dict[str, Any]:
     config = copy.deepcopy(raw_config)
-    if config_path.name == "wine_prediction_interval.json":
+    if config_path.name in {"wine_prediction_interval.json", "wine_prediction_interval_legacy.json"}:
         return apply_prediction_interval_variant(config, variant)
     if variant == "full":
         return config

@@ -37,6 +37,8 @@ def main() -> None:
     parser.add_argument("--test-random-state", type=int, default=42)
     parser.add_argument("--val-divisor", type=int, default=8)
     parser.add_argument("--val-random-state", type=int, default=0)
+    parser.add_argument("--pool-only", action="store_true",
+                        help="write the original non-test pool as train, before any validation/calibration split")
     args = parser.parse_args()
 
     frame = pd.read_csv(args.raw_csv, index_col=0)
@@ -63,14 +65,17 @@ def main() -> None:
     )
     pool_idx = np.asarray(pool_idx, dtype=int)
     test_idx = np.asarray(test_idx, dtype=int)
-    local_train_idx, local_val_idx = train_val_split_keep_cat_levels(
-        x_cat[pool_idx],
-        val_size=len(pool_idx) // args.val_divisor,
-        random_state=args.val_random_state,
-    )
-    train_idx = pool_idx[local_train_idx]
-    val_idx = pool_idx[local_val_idx]
-    assert_val_levels_in_train(x_cat[train_idx], x_cat[val_idx])
+    if args.pool_only:
+        train_idx, val_idx = pool_idx, np.array([], dtype=int)
+    else:
+        local_train_idx, local_val_idx = train_val_split_keep_cat_levels(
+            x_cat[pool_idx],
+            val_size=len(pool_idx) // args.val_divisor,
+            random_state=args.val_random_state,
+        )
+        train_idx = pool_idx[local_train_idx]
+        val_idx = pool_idx[local_val_idx]
+        assert_val_levels_in_train(x_cat[train_idx], x_cat[val_idx])
 
     args.output_dir.mkdir(parents=True, exist_ok=True)
     split_indices = {
@@ -79,6 +84,8 @@ def main() -> None:
         "test": test_idx,
     }
     for split, indices in split_indices.items():
+        if args.pool_only and split == "val":
+            continue
         np.save(args.output_dir / f"X_num_{split}.npy", x_num[indices])
         np.save(args.output_dir / f"X_cat_{split}.npy", x_cat[indices])
         np.save(args.output_dir / f"y_{split}.npy", y[indices])
@@ -88,7 +95,8 @@ def main() -> None:
         )
 
     manifest = {
-        "dataset": "wine_review3_wval",
+        "dataset": "wine_review3" if args.pool_only else "wine_review3_wval",
+        "pool_only": args.pool_only,
         "raw_csv": str(args.raw_csv.resolve()),
         "dropped_columns": DROP_COLUMNS,
         "drop_missing_rows_before_feature_selection": True,

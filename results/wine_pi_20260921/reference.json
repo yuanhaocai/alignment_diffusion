@@ -1,0 +1,329 @@
+{
+  "protocol": {
+    "run_name": "20260921_wine_pi_independent",
+    "split_seed": 20260921,
+    "n_train": 46361,
+    "n_val": 7726,
+    "n_cal": 7726,
+    "n_test": 15454,
+    "split_rule": "One unconditional random permutation of original 61813 non-test rows; calibration first 7726, validation next 7726, train remainder. No stratification, category constraints, or seed selection.",
+    "alpha": 0.05,
+    "M": 200,
+    "sampling_steps": 100,
+    "validation_selection_M": 50,
+    "paper_response_sd": 2.9503095034391293,
+    "vae": {
+      "epochs": 3000,
+      "batch_size": 4096,
+      "lr": 0.001749103698339596,
+      "latent_dim": 768,
+      "d_token": 8,
+      "seed": 2026092101
+    },
+    "alignment": {
+      "epochs": 100,
+      "batch_size": 64,
+      "lr": 0.001,
+      "residual_scale": 0.1,
+      "weight_clip_loss": 1.0,
+      "weight_sup_loss": 1.0,
+      "seed": 2026092102,
+      "selection": "minimum validation alignment loss"
+    },
+    "full": {
+      "epochs": 1000,
+      "batch_size": 2048,
+      "lr": 0.0002,
+      "dim_t": 1024,
+      "seed": 2026092103
+    },
+    "tabular_only": {
+      "epochs": 1000,
+      "batch_size": 512,
+      "lr": 0.0001,
+      "dim_t": 1536,
+      "seed": 2026092104
+    },
+    "diffusion_candidates": [
+      "model.pt",
+      "model_epoch250.pt",
+      "model_epoch500.pt",
+      "model_epoch750.pt",
+      "model_epoch1000.pt"
+    ],
+    "diffusion_selection": "minimum RMSE of M=50 validation MC mean; common validation seeds across candidate checkpoints; no calibration/test selection",
+    "sample_seeds": {
+      "full": {
+        "val": 210001000,
+        "cal": 210002000,
+        "test": 210003000
+      },
+      "tabular_only": {
+        "val": 220001000,
+        "cal": 220002000,
+        "test": 220003000
+      }
+    },
+    "scope": "New fitting/calibration pipeline isolates calibration. Historical development reused these data; this does not erase historical selection or establish conditional-noise assumptions.",
+    "no_refit_on_train_plus_validation": true,
+    "preprocessing": "Train-only quantile transform of numeric covariates; train-only category vocabulary plus fixed reserved unknown index; train-only response scaler.",
+    "test_policy": "All four original test files copied byte-for-byte; hashes checked before and after. Test row order immutable. Old paper response SD is used only for reporting metrics."
+  },
+  "timestamp": "2026-09-21 14:27:37 -0500",
+  "test_immutability": {
+    "X_num_test.npy": {
+      "sha256": "b3febd11babfcd757939ec15b1a736773655024493fcaee8fbf66b252e711f69",
+      "source_unchanged": true,
+      "copy_identical": true
+    },
+    "X_cat_test.npy": {
+      "sha256": "4b8a4c0973cc7c63411ad82c5b38b2189ec67333b7e1d8d3fe0e9685014f2f6e",
+      "source_unchanged": true,
+      "copy_identical": true
+    },
+    "y_test.npy": {
+      "sha256": "23941bcdf2b22451b84957900b5bfb23c4482a1d67ba13dfad3e4a86d46a661b",
+      "source_unchanged": true,
+      "copy_identical": true
+    },
+    "text_test.json": {
+      "sha256": "6d313bc9bb04c74ee9dd444095a61739b5e93cd36249d7ed64d0271931d49b62",
+      "source_unchanged": true,
+      "copy_identical": true
+    }
+  },
+  "models": {
+    "full": {
+      "revised": {
+        "coverage": 0.9537983693542125,
+        "n_covered": 14740,
+        "width": 2.1678721422663427,
+        "raw_width": 6.395893783569336,
+        "crps": 0.2837514665963594,
+        "raw_crps": 0.8371546485140298,
+        "winkler": 2.637543412252275,
+        "lower_tail_miss": 0.022518441827358612,
+        "upper_tail_miss": 0.023683188818428885,
+        "center_rmse": 0.5157153800562126,
+        "center_r2": 0.7311980505440505,
+        "q_lower_raw": -3.2888497924804625,
+        "q_upper_raw": 3.1070439910888723
+      },
+      "new_model_linear_endpoints": {
+        "coverage": 0.9535395366895302,
+        "n_covered": 14736,
+        "width": 2.1650881741015833,
+        "raw_width": 6.387680215835573,
+        "crps": 0.2837514665963594,
+        "raw_crps": 0.8371546485140298,
+        "winkler": 2.637400751215757,
+        "lower_tail_miss": 0.022583149993529183,
+        "upper_tail_miss": 0.0238773133169406,
+        "center_rmse": 0.5157153800562126,
+        "center_r2": 0.7311980505440505,
+        "q_lower_raw": -3.2882477760315005,
+        "q_upper_raw": 3.0994324398040725
+      },
+      "old_model_paper_method": {
+        "q_lower_raw": -3.06953723430634,
+        "q_upper_raw": 2.89214793682099,
+        "coverage": 0.9523100815322894,
+        "n_covered": 14717,
+        "width": 2.0206982230772357,
+        "raw_width": 5.96168517112733,
+        "winkler": 2.481250181645889,
+        "lower_tail_miss": 0.02394202148311117,
+        "upper_tail_miss": 0.023747896984599455,
+        "crps": 0.26719467125189117,
+        "crps_se": 0.0018486781461730017
+      },
+      "old_model_corrected_endpoints": {
+        "q_lower_raw": -3.0730047988891585,
+        "q_upper_raw": 2.9006398010253918,
+        "coverage": 0.9526983305293129,
+        "n_covered": 14723,
+        "width": 2.0247518414427934,
+        "raw_width": 5.97364459991455,
+        "winkler": 2.481464220380833,
+        "lower_tail_miss": 0.0238773133169406,
+        "upper_tail_miss": 0.023424356153746603,
+        "crps": 0.26719467125189117,
+        "crps_se": 0.0018486781461730017
+      },
+      "change_from_old_paper": {
+        "coverage": 0.0014882878219231177,
+        "width": 0.14717391918910705,
+        "crps": 0.016556795344468245,
+        "winkler": 0.15629323060638578
+      },
+      "paired_crps_difference_se": 0.0016038414528621852,
+      "paired_coverage_difference_se": 0.0018290990754440846,
+      "n_gained_coverage": 411,
+      "n_lost_coverage": 388,
+      "k_lower": 193,
+      "k_upper": 7534,
+      "n_cal": 7726,
+      "n_test": 15454,
+      "selected": {
+        "selection": {
+          "criterion": "minimum RMSE of M=50 validation MC mean; common validation seeds across candidate checkpoints; no calibration/test selection",
+          "split": "val",
+          "n": 7726,
+          "M": 50,
+          "candidates": [
+            {
+              "filename": "model.pt",
+              "sha256": "a9f0d2f97cddd29a7c159b01d5de45b14803c44dd5ae60aa1f4ca8e6bbc6ea83",
+              "rmse_raw": 1.541833918442921
+            },
+            {
+              "filename": "model_epoch250.pt",
+              "sha256": "e094c852f06a7fdad5d9461e6d431339e2d827908b5b92fe4c03ed79130fdf04",
+              "rmse_raw": 1.6814805290169799
+            },
+            {
+              "filename": "model_epoch500.pt",
+              "sha256": "c92f5fe44a24d730d214e792a3628831a139b7477462b81519baf8d949bb8ec3",
+              "rmse_raw": 1.5950000634562214
+            },
+            {
+              "filename": "model_epoch750.pt",
+              "sha256": "8763fbc0349296ceff1ef3b20f97598ecf8b965354939ab489f84123c66a3ae4",
+              "rmse_raw": 1.5549700557768573
+            },
+            {
+              "filename": "model_epoch1000.pt",
+              "sha256": "9608c483eb268a8371866682b6c267562c6418c71187e68ac02b8425115536b3",
+              "rmse_raw": 1.540518724225916
+            }
+          ],
+          "selected": {
+            "filename": "model_epoch1000.pt",
+            "sha256": "9608c483eb268a8371866682b6c267562c6418c71187e68ac02b8425115536b3",
+            "rmse_raw": 1.540518724225916
+          },
+          "selected_model_sha256": "9608c483eb268a8371866682b6c267562c6418c71187e68ac02b8425115536b3"
+        },
+        "model_sha256": "9608c483eb268a8371866682b6c267562c6418c71187e68ac02b8425115536b3"
+      },
+      "calibration_bank_sha256": "d0b801c3446b6698ede3fb02588e021bd0be50212f76dfb1ef89ff8ab50c357b",
+      "test_bank_sha256": "92e571a212be42ae06bce82caabe85c19d06a2a3042fb45652b2953f2cb980e7"
+    },
+    "tabular_only": {
+      "revised": {
+        "coverage": 0.9484922997282257,
+        "n_covered": 14658,
+        "width": 2.952668408946527,
+        "raw_width": 8.711285667419432,
+        "crps": 0.42572457961707394,
+        "raw_crps": 1.2560192730918815,
+        "winkler": 3.606453260146221,
+        "lower_tail_miss": 0.026077390966740003,
+        "upper_tail_miss": 0.025430309305034295,
+        "center_rmse": 0.7590303909254486,
+        "center_r2": 0.41772173780012267,
+        "q_lower_raw": -4.672720413208012,
+        "q_upper_raw": 4.03856525421142
+      },
+      "new_model_linear_endpoints": {
+        "coverage": 0.9483628833958846,
+        "n_covered": 14656,
+        "width": 2.950699834059596,
+        "raw_width": 8.705477762222287,
+        "crps": 0.42572457961707394,
+        "raw_crps": 1.2560192730918815,
+        "winkler": 3.606507720627234,
+        "lower_tail_miss": 0.026206807299081144,
+        "upper_tail_miss": 0.025430309305034295,
+        "center_rmse": 0.7590303909254486,
+        "center_r2": 0.41772173780012267,
+        "q_lower_raw": -4.670479984283443,
+        "q_upper_raw": 4.034997777938841
+      },
+      "old_model_paper_method": {
+        "q_lower_raw": -4.769158244132992,
+        "q_upper_raw": 3.969694776535036,
+        "coverage": 0.9480393425650318,
+        "n_covered": 14651,
+        "width": 2.962012294127543,
+        "raw_width": 8.738853020668028,
+        "winkler": 3.6154604047987933,
+        "lower_tail_miss": 0.023812605150770026,
+        "upper_tail_miss": 0.028148052284198265,
+        "crps": 0.42603545741973986,
+        "crps_se": 0.00254817529821756
+      },
+      "old_model_corrected_endpoints": {
+        "q_lower_raw": -4.773972282409673,
+        "q_upper_raw": 3.971625900268549,
+        "coverage": 0.9481040507312023,
+        "n_covered": 14652,
+        "width": 2.9642985498584524,
+        "raw_width": 8.745598182678222,
+        "winkler": 3.615455573230254,
+        "lower_tail_miss": 0.023812605150770026,
+        "upper_tail_miss": 0.028083344118027695,
+        "crps": 0.42603545741973986,
+        "crps_se": 0.00254817529821756
+      },
+      "change_from_old_paper": {
+        "coverage": 0.0004529571631939344,
+        "width": -0.00934388518101592,
+        "crps": -0.0003108778026659209,
+        "winkler": -0.00900714465257213
+      },
+      "paired_crps_difference_se": 0.0004204610104615252,
+      "paired_coverage_difference_se": 0.0008801471484194517,
+      "n_gained_coverage": 96,
+      "n_lost_coverage": 89,
+      "k_lower": 193,
+      "k_upper": 7534,
+      "n_cal": 7726,
+      "n_test": 15454,
+      "selected": {
+        "selection": {
+          "criterion": "minimum RMSE of M=50 validation MC mean; common validation seeds across candidate checkpoints; no calibration/test selection",
+          "split": "val",
+          "n": 7726,
+          "M": 50,
+          "candidates": [
+            {
+              "filename": "model.pt",
+              "sha256": "370053afab92c2c540f9c002dd0d3037269de161ce7dc94af361ca04f6f6792f",
+              "rmse_raw": 2.281105489979383
+            },
+            {
+              "filename": "model_epoch250.pt",
+              "sha256": "52f6d4094dda0b5ae0d0bc5762fdd610c371844f486942efe4216c819e86473d",
+              "rmse_raw": 2.2817575547309623
+            },
+            {
+              "filename": "model_epoch500.pt",
+              "sha256": "87af01d4282f5038fb29ccae365c6914d1e5d9138962396dc33a0738133e3c55",
+              "rmse_raw": 2.2834957490023147
+            },
+            {
+              "filename": "model_epoch750.pt",
+              "sha256": "d61e18061815a538877b53209a2282cd5707a4618f1b969c70080a2cc3dd7da3",
+              "rmse_raw": 2.2813751963290874
+            },
+            {
+              "filename": "model_epoch1000.pt",
+              "sha256": "f37c127d57008049816f488d7aa65f73f825feff0fbaead4cd6df2343cdb3222",
+              "rmse_raw": 2.2817492088381375
+            }
+          ],
+          "selected": {
+            "filename": "model.pt",
+            "sha256": "370053afab92c2c540f9c002dd0d3037269de161ce7dc94af361ca04f6f6792f",
+            "rmse_raw": 2.281105489979383
+          },
+          "selected_model_sha256": "370053afab92c2c540f9c002dd0d3037269de161ce7dc94af361ca04f6f6792f"
+        },
+        "model_sha256": "370053afab92c2c540f9c002dd0d3037269de161ce7dc94af361ca04f6f6792f"
+      },
+      "calibration_bank_sha256": "5d47f7be93507d9530c607a82223549f97d6e359a3b3917d9b2df21e072c9ee5",
+      "test_bank_sha256": "51d9c4721c90b55b8e742e1b205c8f8f305c671ebfb037108bc50c696506cc73"
+    }
+  }
+}

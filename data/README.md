@@ -39,7 +39,17 @@ plus `shopee_image_embd/{train,val,test}/`.
   two splits come from the paper's 800-row training pool. Image embeddings are
   stored separately and indexed in the same row order.
 
-Only the validation-set versions of Petfinder and Wine Reviews are used.
+The point-prediction workflows use the validation-set versions of Petfinder
+and Wine Reviews. Revised Wine prediction intervals additionally use the
+original `wine_review3` non-test pool (61,813 rows), then create a new
+46,361/7,726/7,726 train/validation/calibration split in the run directory.
+The original 15,454-row test is copied byte-for-byte. Calibration files use
+the `_cal.npy` / `text_cal.json` suffixes. Do not use `wine_review3_wval/train`
+as the original pool or reuse its validation set for calibration.
+
+See the top-level README's complete full and tabular-only PI commands. The
+PI CLIP cache retains all 77 token states (`--keep-padding`); it must not be
+substituted with masked-padding point-prediction embeddings.
 
 ## Embedding layout
 

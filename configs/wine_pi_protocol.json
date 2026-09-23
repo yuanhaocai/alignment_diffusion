@@ -1,0 +1,70 @@
+{
+  "run_name": "20260921_wine_pi_independent",
+  "split_seed": 20260921,
+  "n_train": 46361,
+  "n_val": 7726,
+  "n_cal": 7726,
+  "n_test": 15454,
+  "split_rule": "One unconditional random permutation of original 61813 non-test rows; calibration first 7726, validation next 7726, train remainder. No stratification, category constraints, or seed selection.",
+  "alpha": 0.05,
+  "M": 200,
+  "sampling_steps": 100,
+  "validation_selection_M": 50,
+  "paper_response_sd": 2.9503095034391293,
+  "vae": {
+    "epochs": 3000,
+    "batch_size": 4096,
+    "lr": 0.001749103698339596,
+    "latent_dim": 768,
+    "d_token": 8,
+    "seed": 2026092101
+  },
+  "alignment": {
+    "epochs": 100,
+    "batch_size": 64,
+    "lr": 0.001,
+    "residual_scale": 0.1,
+    "weight_clip_loss": 1.0,
+    "weight_sup_loss": 1.0,
+    "seed": 2026092102,
+    "selection": "minimum validation alignment loss"
+  },
+  "full": {
+    "epochs": 1000,
+    "batch_size": 2048,
+    "lr": 0.0002,
+    "dim_t": 1024,
+    "seed": 2026092103
+  },
+  "tabular_only": {
+    "epochs": 1000,
+    "batch_size": 512,
+    "lr": 0.0001,
+    "dim_t": 1536,
+    "seed": 2026092104
+  },
+  "diffusion_candidates": [
+    "model.pt",
+    "model_epoch250.pt",
+    "model_epoch500.pt",
+    "model_epoch750.pt",
+    "model_epoch1000.pt"
+  ],
+  "diffusion_selection": "minimum RMSE of M=50 validation MC mean; common validation seeds across candidate checkpoints; no calibration/test selection",
+  "sample_seeds": {
+    "full": {
+      "val": 210001000,
+      "cal": 210002000,
+      "test": 210003000
+    },
+    "tabular_only": {
+      "val": 220001000,
+      "cal": 220002000,
+      "test": 220003000
+    }
+  },
+  "scope": "New fitting/calibration pipeline isolates calibration. Historical development reused these data; this does not erase historical selection or establish conditional-noise assumptions.",
+  "no_refit_on_train_plus_validation": true,
+  "preprocessing": "Train-only quantile transform of numeric covariates; train-only category vocabulary plus fixed reserved unknown index; train-only response scaler.",
+  "test_policy": "All four original test files copied byte-for-byte; hashes checked before and after. Test row order immutable. Old paper response SD is used only for reporting metrics."
+}

@@ -99,15 +99,20 @@ class RunExperimentTest(unittest.TestCase):
                 ["alignment_train", "alignment_transform", "mlp_train_evaluate"],
             )
 
-    def test_tabular_only_prediction_interval_uses_tabular_model(self) -> None:
+    def test_prediction_interval_variants_retrain_with_shared_split_and_vae(self) -> None:
         name = "wine_prediction_interval.json"
         config = RUNNER.apply_variant(
             self.load(name), ROOT / "configs" / name, "tabular-only"
         )
-        self.assertEqual(
-            config["variables"]["diffusion_dir"],
-            "{artifacts_root}/wine_tabular_only/diffusion",
-        )
+        self.assertEqual(config["variables"]["variant"], "tabular-only")
+        self.assertNotIn("diffusion_dir", config["variables"])
+        self.assertEqual([c["name"] for c in config["commands"]], [
+            "prepare_interval_data", "train_interval_model", "sample_calibration_and_test", "evaluate_interval"])
+        full = RUNNER.apply_variant(self.load(name), ROOT / "configs" / name, "full")
+        self.assertEqual(full["variables"]["run_root"], config["variables"]["run_root"])
+        self.assertEqual(full["variables"]["variant"], "full")
+        with self.assertRaises(ValueError):
+            RUNNER.apply_variant(self.load(name), ROOT / "configs" / name, "no-alignment")
 
 
 if __name__ == "__main__":

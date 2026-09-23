@@ -47,7 +47,10 @@ All active tabular/text workflows use a validation split:
 - `mimic_adm_pt_disch_discharge_censored_wval`
 - `shopee` for the separate image experiment
 
-The Wine prediction-interval experiment also uses `wine_review3_wval`.
+The revised Wine prediction-interval experiment starts from the original
+61,813-row non-test pool and creates separate training, validation, and
+calibration sets. It preserves the original 15,454-row test set; see
+[Prediction intervals](#prediction-intervals-wine-reviews).
 
 ### Petfinder
 
@@ -206,7 +209,7 @@ The available stage names are:
 | `petfinder_full.json` | `alignment_train`, `alignment_transform`, `diffusion_train`, `sample_validation`, `evaluate_validation`, `sample_test`, `evaluate_test` |
 | `mimic_full.json` | `alignment_train`, `alignment_transform`, `diffusion_train`, `sample_validation`, `sample_test`, `evaluate_validation_threshold` |
 | `shopee_image_only.json` | `diffusion_train`, `sample_validation`, `evaluate_validation`, `sample_test`, `evaluate_test` |
-| `wine_prediction_interval.json` | `sample_validation`, `sample_test`, `evaluate_interval` |
+| `wine_prediction_interval.json` | `prepare_interval_data`, `train_interval_model`, `sample_calibration_and_test`, `evaluate_interval` |
 
 The main stages have the following roles:
 
@@ -221,8 +224,12 @@ The main stages have the following roles:
   predictions.
 - `evaluate_validation_threshold` selects the MIMIC-IV classification threshold
   by validation F1 and applies that same threshold to the test predictions.
-- `evaluate_interval` constructs and evaluates the Wine Reviews prediction
-  intervals from the validation and test samples.
+- `prepare_interval_data` makes the independent calibration split and fits
+  training-only preprocessing; `train_interval_model` retrains the VAE and
+  the selected variant and selects its checkpoint on validation.
+- `sample_calibration_and_test` samples the frozen model on calibration and
+  test with separate seeds. `evaluate_interval` applies corrected residual
+  ranks and scores the empirical residual predictive distribution.
 - `mlp_train_evaluate` trains and evaluates the no-diffusion MLP ablation.
 
 ### Ablation variants
@@ -265,16 +272,6 @@ python scripts/run_experiment.py configs/mimic_full.json \
   --variant no-diffusion --list
 ```
 
-The tabular-only Wine Reviews prediction intervals use the tabular-only model
-created above:
-
-```bash
-python scripts/run_experiment.py configs/wine_prediction_interval.json \
-  --variant tabular-only \
-  --set data_root=/path/to/data \
-  --set artifacts_root=/path/to/output
-```
-
 Use `--dry-run` to inspect the fully expanded commands and paths without
 starting any training:
 
@@ -313,6 +310,59 @@ changing the threshold.
 
 The categorical diffusion sampler decodes generated response embeddings using
 the nearest training-class response prototype.
+
+## Prediction intervals: Wine Reviews
+
+The PI workflow retrains with separate training, validation, and calibration
+sets, preserving the original test set. It uses M=200 and alpha=0.05.
+
+Start from the original 61,813-row `wine_review3` training pool, not
+`wine_review3_wval/train`. If needed, prepare it from the downloaded CSV:
+
+```bash
+python data/preprocessing/prepare_wine_reviews.py \
+  --raw-csv /path/to/raw/wine_reviews/winemag-data-130k-v2.csv \
+  --output-dir /path/to/data/wine_review3 --pool-only
+```
+
+Reuse the original PI CLIP embeddings, or extract them with `--keep-padding`
+in a separate directory from the point-prediction embeddings:
+
+```bash
+for split in train test
+do
+  python scripts/extract_clip_text_embeddings.py \
+    --input-json /path/to/data/wine_review3/text_${split}.json \
+    --output-dir /path/to/embeddings/wine_review3_text_clip_embd/${split} \
+    --keep-padding
+done
+```
+
+Run full and tabular-only sequentially, sharing the split and newly trained
+VAE. Each command includes training, checkpoint selection, sampling, and
+evaluation; completed shared stages are skipped:
+
+```bash
+for variant in full tabular-only
+do
+  python scripts/run_experiment.py configs/wine_prediction_interval.json \
+    --variant "$variant" \
+    --set source_dir=/path/to/data/wine_review3 \
+    --set text_dir=/path/to/embeddings/wine_review3_text_clip_embd \
+    --set run_root=/path/to/output/wine_prediction_interval \
+    --set gpu=0
+done
+```
+
+To run one variant, use only `full` or `tabular-only` in the loop. Test files
+default to those in `source_dir`; use `--set test_source_dir=/path/to/existing/test_dataset`
+if stored separately. Add `--dry-run` to inspect commands or
+`--only evaluate_interval` to evaluate completed sample banks.
+
+Results are written to `run_root/results/summary.json` and
+`run_root/results/table3_new_rows.tex`. See the
+[experiment notes](docs/wine_prediction_intervals.md) for the method,
+configuration, recorded results, and additional evaluation commands.
 
 ## Baselines
 
